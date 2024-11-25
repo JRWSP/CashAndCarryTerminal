@@ -12,8 +12,7 @@ import logging
 
 def colorize_dataframe(df, exchange_column, color_mapping):
     # Function to colorize the DataFrame based on the exchange column
-    df_colored = df.copy()
-    df_colored = df_colored.round(2)
+    df_colored = df.copy().round(2)
     for index, row in df_colored.iterrows():
         color = color_mapping[row[exchange_column]]
         df_colored.loc[index] = [colored(str(value), color) for value in row]
@@ -21,8 +20,7 @@ def colorize_dataframe(df, exchange_column, color_mapping):
 
 def colorize_PnL(df, PnL_column:str='PnL'):
     # Function to colorize the DataFrame based on the PnL
-    df_colored = df.copy()
-    df_colored = df_colored.round(2)
+    df_colored = df.copy().round(2).astype(object) #astype is needed to suppress Pandas depreciation warning.
     for index, row in df_colored.iterrows():
         color = 'red' if row[PnL_column] <= 0.0 else 'green'
         df_colored.loc[index] = [colored(str(value), color) for value in row]
@@ -119,21 +117,19 @@ def PnL_Frame(combined_df: pd.DataFrame, df_fee:pd.DataFrame) -> pd.DataFrame:
     PositionFrame = pd.DataFrame(my_position)
     PositionFrame = pd.merge(PositionFrame, combined_df, on=['Exchange','Symbol'])
     if len(PositionFrame.index) == 0:
-        PositionFrame["Ent.Spr.Ma."] = None
-        PositionFrame["Ent.Spr.Ta."] = None
+        #PositionFrame["Ent.Spr.Ma."] = None
+        PositionFrame["Ent.Spr."] = None
         PositionFrame["PnL"] = None
     else:
         PositionFrame = pd.merge(PositionFrame, df_fee, on='Exchange')
         for index in PositionFrame.index:
             PositionFrame.loc[index,'Long'] = np.average(PositionFrame.loc[index]['Long']['AvgPrice'], weights=PositionFrame.loc[index]['Long']['Amount']).astype(float)
         MySpread = ( (PositionFrame["Entry"]/PositionFrame["Long"] - 1)*100 ).astype(float)
-        EntrySpreadMaker = MySpread - PositionFrame["Maker"]
-        EntrySpreadTaker = MySpread - PositionFrame["Taker"]
-        PnLTaker = EntrySpreadTaker - PositionFrame["Spr.Ta."]
-        PositionFrame["Ent.Spr.Ma."] = EntrySpreadMaker
-        PositionFrame["Ent.Spr.Ta."] = EntrySpreadTaker
-        PositionFrame["PnL"] = PnLTaker #Same for maker and taker.   
-    PositionFrame = PositionFrame.loc[:, ['Symbol','Exchange', 'Ent.Spr.Ma.', 'Ent.Spr.Ta.', 'PnL']]
+        PositionFrame["Ent.Spr."] = MySpread - PositionFrame["TotalFee"]
+        PositionFrame["PnL"] = PositionFrame["Ent.Spr."] - PositionFrame["Spr.-f"]
+        #PositionFrame["Ent.Spr."] = EntrySpreadTaker
+        #PositionFrame["PnL"] = PnLTaker #Same for maker and taker.   
+    PositionFrame = PositionFrame.loc[:, ['Symbol','Exchange', 'Ent.Spr.', 'PnL']]
     return PositionFrame
 
 def fetch_concurrent(ExchangeTickers:dict, FetchTickersFucntion:dict):
