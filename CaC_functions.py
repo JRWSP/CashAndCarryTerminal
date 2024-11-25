@@ -1,5 +1,5 @@
-import nest_asyncio
-nest_asyncio.apply()
+#import nest_asyncio
+#nest_asyncio.apply()
 from CaC_open_position import my_position
 import numpy as np
 import pandas as pd
