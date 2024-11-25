@@ -1,4 +1,11 @@
-my_position = []
+my_position = [    {
+        'Exchange': "Bybit",
+        'Symbol': 'BTC/USD:BTC-241227',
+        'Entry': 60156.62,
+        'Long': {   'AvgPrice': [57335.99], 
+                    'Amount': [105.78490155]
+                    }
+    }]
 """[
     {
         'Exchange': "Kucoin",

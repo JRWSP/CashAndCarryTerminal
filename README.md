@@ -5,9 +5,8 @@ ETH: 0x80e98FcfED62970e35a57d2F1fefed7C89d5DaF4
 
 
 # Cash-and-carry arbitrage monitoring
-Python script for monitoring the cash-and-carry arbitrage opportunity across centralized exchanges on terminal.
-
-## Running on terminal
+Simple Python script for monitoring the cash-and-carry arbitrage opportunity across centralized exchanges on terminal.
+</br>
 One can run the monitoring script directly in terminal. To do this, simply type:
 ```
 python CaC_main.py
@@ -15,6 +14,9 @@ python CaC_main.py
 The script will start fetching price data from exchanges. After a few moment you should see the spreads on terminal screen.
 ![terminal_screen](/figures/spread_terminal.png)
 
+Spr.-f (%) is a spread between spot and future prices adjusted by exchange's fee. </br>
+APY-f (%) is annualized return adjusted by exchange's fee. </br>
+Depends on data accessible by `ccxt` library, spot and future prices can be either a mark price or last price. Please verify the actual price on exchange before starting your trades.
 ## requirement
 - Python 3.xx (Tested with 3.11 and 3.12)
 - Pandas
@@ -25,4 +27,7 @@ The script will start fetching price data from exchanges. After a few moment you
 
 
 ## Adding new CEX
-Each exchange needs their own fetch function, because there is different information can be accessible by `ccxt` library. To add a new exchange you need to put your own fetching function in `CaC_functions_fetch.py` and add the function name in `FetchTickersFunction` variable in `config.py`.
+Each exchange needs their own fetch function, because there is different information can be accessible by `ccxt` library. To add a new exchange you need to put your own fetching function in `CaC_functions_fetch.py` and add the function name in `FetchTickersFunction` variable in `config.py`. Some variables in `config.py`, such as fee, also need accordingly. 
+
+## Open position 
+You can also monitor your current open position by add the information in `CaC_open_position.py`. 
