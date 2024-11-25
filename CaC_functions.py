@@ -117,19 +117,17 @@ def PnL_Frame(combined_df: pd.DataFrame, df_fee:pd.DataFrame) -> pd.DataFrame:
     PositionFrame = pd.DataFrame(my_position)
     PositionFrame = pd.merge(PositionFrame, combined_df, on=['Exchange','Symbol'])
     if len(PositionFrame.index) == 0:
-        #PositionFrame["Ent.Spr.Ma."] = None
-        PositionFrame["Ent.Spr."] = None
+        PositionFrame["Entry Spr."] = None
         PositionFrame["PnL"] = None
     else:
         PositionFrame = pd.merge(PositionFrame, df_fee, on='Exchange')
+        PositionFrame.rename(columns={"Spr.-f":"Current Spr."}, inplace=True)
         for index in PositionFrame.index:
-            PositionFrame.loc[index,'Long'] = np.average(PositionFrame.loc[index]['Long']['AvgPrice'], weights=PositionFrame.loc[index]['Long']['Amount']).astype(float)
-        MySpread = ( (PositionFrame["Entry"]/PositionFrame["Long"] - 1)*100 ).astype(float)
-        PositionFrame["Ent.Spr."] = MySpread - PositionFrame["TotalFee"]
-        PositionFrame["PnL"] = PositionFrame["Ent.Spr."] - PositionFrame["Spr.-f"]
-        #PositionFrame["Ent.Spr."] = EntrySpreadTaker
-        #PositionFrame["PnL"] = PnLTaker #Same for maker and taker.   
-    PositionFrame = PositionFrame.loc[:, ['Symbol','Exchange', 'Ent.Spr.', 'PnL']]
+            PositionFrame.loc[index,'SpotBuy'] = np.average(PositionFrame.loc[index]['SpotBuy']['AvgPrice'], weights=PositionFrame.loc[index]['SpotBuy']['Amount']).astype(float)
+        MySpread = ( (PositionFrame["FutureShortPrice"]/PositionFrame["SpotBuy"] - 1)*100 ).astype(float)
+        PositionFrame["Entry Spr."] = MySpread - PositionFrame["TotalFee"]
+        PositionFrame["PnL"] = PositionFrame["Entry Spr."] - PositionFrame["Current Spr."]
+    PositionFrame = PositionFrame.loc[:, ['Symbol','Exchange', 'Entry Spr.', "Current Spr.", 'PnL']]
     return PositionFrame
 
 def fetch_concurrent(ExchangeTickers:dict, FetchTickersFucntion:dict):

@@ -31,7 +31,11 @@ def main():
             print(table_position)
         #Print logo and last update.
         logo_lines = logo.split('\n')
-        logo_lines[1] += f"Last Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        logo_lines[1] += f" Last Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        logo_lines[2] += " "
+        logo_lines[3] += " By JRW | Line:jw540 | Source available at"
+        logo_lines[4] += " https://github.com/JRWSP/CashAndCarryTerminal"
+        logo_lines[5] += " BTC:bc1q2zpmmlz7ujwx2ghsgw5j7umv8wmpchplemvhtu"
         for line in logo_lines:
             print(line)
         # Wait the next update
