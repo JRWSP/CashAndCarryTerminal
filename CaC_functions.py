@@ -7,12 +7,50 @@ import ccxt
 import concurrent.futures
 import os
 from termcolor import colored
-from CaC_functions_fetch import *
+from datetime import datetime
 import logging
+
+def DeliveryTimeFromTicker(ticker:str) -> str:
+    yymmdd = ticker[-6:]
+    return datetime.strptime(yymmdd,'%y%m%d')  #Date code, e.g. yymmdd.
+
+def FindDaysUntilExpire(APY:float, Spread:float) -> float:
+    return np.log(1+APY/100)/np.log(1+Spread/100)
+
+def FindAPY(Spread:float, Days:float) -> float:
+    return ((1+Spread/100)**Days - 1)*100
+
+def ComputeAPYwithFee(df:pd.DataFrame, df_fee:pd.DataFrame) -> pd.DataFrame:
+    """    
+    Return a DataFrame with computed spread and APY after fees.
+    APY is computed using remaining days till expiration.
+    Args:
+        df (pd.DataFrame): main table
+        df_fee (pd.DataFrame): table containing information about CEX's fee.
+
+    Returns:
+        pd.DataFrame: main table with fee-adjusted APY.
+    """
+    merge_fee = pd.merge(df, df_fee, on="Exchange")
+    N = FindDaysUntilExpire(merge_fee.APY, merge_fee.Spread)
+    merge_fee['Spr.-f'] = merge_fee['Spread'] - merge_fee['TotalFee']
+    merge_fee['APY-f'] = FindAPY((merge_fee["Spr.-f"]), N)
+    return merge_fee.loc[:, ['Symbol', 'Exchange', 'Spr.-f','APY-f']]
+
+def CreateDataFrame(DeliveryTime:str, timestamp:datetime, 
+                    markPrice:float, indexPrice:float, 
+                    ex_name:str, symbol:str) -> pd.DataFrame:
+        RemainingDay = (DeliveryTime - timestamp).total_seconds()/60/60/24
+        Days = 365/RemainingDay
+        Spread = (markPrice/indexPrice - 1.0)*100
+        APY = FindAPY(Spread, Days)
+        return pd.DataFrame({'Exchange':[ex_name], 'Symbol': [symbol], 
+                               'Spread': Spread, 'APY': APY, 
+                               'Spot': indexPrice, 'Future': markPrice})
 
 def colorize_dataframe(df, exchange_column, color_mapping):
     # Function to colorize the DataFrame based on the exchange column
-    df_colored = df.copy().round(2)
+    df_colored = df.copy().round(2).astype(object) #astype is needed to suppress Pandas depreciation warning.
     for index, row in df_colored.iterrows():
         color = color_mapping[row[exchange_column]]
         df_colored.loc[index] = [colored(str(value), color) for value in row]
@@ -34,7 +72,22 @@ def get_terminal_size():
         # Default to some reasonable size if it fails
         return os.terminal_size((80, 24))
 
-def FilterTickers(exchange:ccxt, Base:str='BTC', Type:str='future', Inverse:bool=True, start:int=None, stop:int=None, **kwargs) -> list[str]:
+def FilterTickers(exchange:ccxt, Base:str='BTC', Type:str='future', Inverse:bool=True, start:int=None, stop:int=None, **kwargs) -> tuple[ccxt,list[str]]:
+    """
+    Loads exchange information and filters only tickers we need.
+    Return both.
+    Args:
+        exchange (ccxt): _description_
+        Base (str, optional): _description_. Defaults to 'BTC'.
+        Type (str, optional): _description_. Defaults to 'future'.
+        Inverse (bool, optional): _description_. Defaults to True.
+        start (int, optional): _description_. Defaults to None.
+        stop (int, optional): _description_. Defaults to None.
+
+    Returns:
+        ccxt.exchange: exchange information from exchange.load_markets()
+        list[str]: future tickers
+    """
     #Load the whole market and filter out for all future tickers in the exchange.
     #May use only once for each exchanges as it can be slower than fetch the known tickers.
     #Return symbols
@@ -70,9 +123,11 @@ def FilterTickers(exchange:ccxt, Base:str='BTC', Type:str='future', Inverse:bool
     tickers = []
     for future in ExchangeTickers:
         tickers.append(future['symbol'])
-    return tickers 
+    return exchange, tickers 
+
 def filter_multi_threads(ExchangeName:dict=None, Base:str|list[str]='BTC', Type:str='future', Inverse:bool=True, WhichTickersIndex:dict[str,tuple]=None, filter_kwargs:dict[str,dict]=None):
-    """Calling FilterTickers using multithread can be faster when go over multiple exchanges.
+    """
+    Calling FilterTickers using multithread can be faster when go over multiple exchanges.
 
     Args:
         ExchangeName (dict, optional): _description_. Defaults to None.
@@ -86,7 +141,8 @@ def filter_multi_threads(ExchangeName:dict=None, Base:str|list[str]='BTC', Type:
         ValueError: _description_
 
     Returns:
-        _type_: _description_
+        Dict[str:ccxt.exchange]: exchange information from exchange.load_markets()
+        Dict[str:list[str]]: future tickers
     """
     if ExchangeName==None and WhichTickersIndex==None and filter_kwargs==None:
         raise ValueError(f"ExchangeName, WhichTickersIndex, filter_kwargs must be given.")
@@ -99,15 +155,34 @@ def filter_multi_threads(ExchangeName:dict=None, Base:str|list[str]='BTC', Type:
                 kwargs = filter_kwargs[ExName]
                 future_to_func.update({ executor.submit(FilterTickers, ExCCXT(), Base, Type, Inverse, start, stop, **kwargs): ExName})
         results = {}
+        exchanges = {}
         for future in concurrent.futures.as_completed(future_to_func):
             ExName = future_to_func[future]
             try:
-                data = future.result()
-                results[ExName] = data
+                exchanges[ExName], results[ExName] = future.result()
             except Exception as exc:
                 print(f'{ExName.__name__} generated an exception: {exc}')
-    return results
+    return exchanges, results
 
+def LoadSpotMarkets(Exchanges:dict[str:ccxt]) -> dict[str:ccxt]:
+    """
+    Some exchange has separated future and spot markets in ccxt.
+    This will include loaded spot market that will be used in fetch function and avoid loading repetition.
+    For now this function requires manual exchange identification. 
+
+    Args:
+        Exchanges (dict[str:ccxt]): Exchanges loaded by FilterTickers function
+
+    Raises:
+        ValueError: _description_
+
+    Returns:
+        Exchanges(dict[str:ccxt]): Exchanges with spot market loaded. 
+    """
+    if "Binance" in Exchanges.keys():
+        ccxt.binance().load_markets()
+        Exchanges["Binance"] = (Exchanges["Binance"], ccxt.binance())
+    return Exchanges
 
 #Read my position and find PnL.
 def PnL_Frame(combined_df: pd.DataFrame, df_fee:pd.DataFrame) -> pd.DataFrame:
@@ -130,13 +205,13 @@ def PnL_Frame(combined_df: pd.DataFrame, df_fee:pd.DataFrame) -> pd.DataFrame:
     PositionFrame = PositionFrame.loc[:, ['Symbol','Exchange', 'Entry Spr.', "Current Spr.", 'PnL']]
     return PositionFrame
 
-def fetch_concurrent(ExchangeTickers:dict, FetchTickersFucntion:dict):
+def fetch_concurrent(Exchanges:dict, ExchangeTickers:dict, FetchTickersFucntion:dict):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Start the load operations and mark each future with its function
         future_to_func = {}
         for ExchangeName, TickersList in ExchangeTickers.items():
             if len(TickersList) != 0:
-                future_to_func.update({ executor.submit(FetchTickersFucntion[ExchangeName], TickersList): FetchTickersFucntion[ExchangeName]})
+                future_to_func.update({ executor.submit(FetchTickersFucntion[ExchangeName], TickersList, Exchanges[ExchangeName], ExchangeName): FetchTickersFucntion[ExchangeName]})
         results = []
         for future in concurrent.futures.as_completed(future_to_func):
             func = future_to_func[future]
@@ -146,17 +221,18 @@ def fetch_concurrent(ExchangeTickers:dict, FetchTickersFucntion:dict):
             except Exception as exc:
                 print(f'{func.__name__} generated an exception: {exc}')
     # Combine all DataFrames
+    print(f"Results are {results}")
     combined_df = pd.concat(results, ignore_index=True)
     return combined_df.loc[:, ['Symbol', 'APY','Spread', 'Exchange','Spot', 'Future']]
 
-def fetch_main(ExchangeTickers:dict, FetchTickersFucntion:dict, ExchangeFee:dict):
+def fetch_main(Exchanges:dict, ExchangeTickers:dict, FetchTickersFucntion:dict, ExchangeFee:dict):
     if len(ExchangeTickers) == 1:
         raise ValueError(f"This function does not work when len(ExchangeTickers) == 1. Might need flag to handle this.")
     #Create dataframe of exchange fee.
     df_fee = [(CEX_name, TotalFee) for CEX_name, TotalFee in ExchangeFee.items()]
     df_fee = pd.DataFrame(df_fee, columns=['Exchange', 'TotalFee'])
     #Fetch for a future table, use multithread for multiple exchanges.
-    df_future = fetch_concurrent(ExchangeTickers, FetchTickersFucntion) 
+    df_future = fetch_concurrent(Exchanges,ExchangeTickers, FetchTickersFucntion) 
     #Compute returns after exchange fees and sort by APY.
     df_future = pd.merge(df_future, ComputeAPYwithFee(df_future, df_fee), on=['Symbol', 'Exchange']).sort_values(by=['Symbol','APY-f'], ascending=False)
     df_future = df_future.loc[:, ['Symbol','Exchange','Spot','Future','Spr.-f','APY-f']]

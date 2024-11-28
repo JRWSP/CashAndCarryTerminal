@@ -1,8 +1,8 @@
 import ccxt
-from CaC_functions import *
+from CaC_fetch_functions import *
 from logo import btc_logo
 
-RefreshTime=60 #in second.
+RefreshTime=15 #in second.
 Base = ['BTC','ETH']#,'SOL'] #Ticker of crypto to monitor.
 Type = 'future'#Keep this for compatibility.
 Inverse = True #True for Coin-M, False for USD-M. Note that only Coin-M has been test.
@@ -28,7 +28,7 @@ filter_kwargs = { #certain CEX need filering. Use {} if unknown.
                     'Binance': {} }        
 FetchTickersFucntion = { #fetching function for individual CEXs.
                 "Kucoin": FetchTickersKucoin, 
-                "Deribit": FetchTickersDeribit,
+                #"Deribit": FetchTickersDeribit,
                 "Bybit": FetchTickersBybit,
                 "OKX": FetchTickersOKX,
                  "Binance": FetchTickersBinance }  
