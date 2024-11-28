@@ -6,6 +6,17 @@ ETH: 0x80e98FcfED62970e35a57d2F1fefed7C89d5DaF4
 # Cash-and-carry arbitrage monitoring
 Simple Python script for monitoring the cash-and-carry arbitrage opportunity across centralized exchanges on terminal.
 </br>
+## Installation and usage
+Check [release](https://github.com/JRWSP/CashAndCarryTerminal/releases) for 1-click executable versions,however, they are lack of customization. 
+
+An other option is to run the python code directly in your Terminal. First, you need to clone this repository via:
+```
+git clone https://github.com/JRWSP/CashAndCarryTerminal
+```
+If needed, install the required packages (I suggest to use virtual environment).
+```
+pip install -r requirements.txt
+```
 One can run the monitoring script directly in terminal. To do this, simply type:
 ```
 python CaC_main.py
