@@ -2,51 +2,12 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import ccxt
+from CaC_functions import DeliveryTimeFromTicker,CreateDataFrame
 
-def DeliveryTimeFromTicker(ticker:str) -> str:
-    yymmdd = ticker[-6:]
-    return datetime.strptime(yymmdd,'%y%m%d')  #Date code, e.g. yymmdd.
-
-def FindDaysUntilExpire(APY:float, Spread:float) -> float:
-    return np.log(1+APY/100)/np.log(1+Spread/100)
-
-def FindAPY(Spread:float, Days:float) -> float:
-    return ((1+Spread/100)**Days - 1)*100
-
-def ComputeAPYwithFee(df:pd.DataFrame, df_fee:pd.DataFrame) -> pd.DataFrame:
-    """    
-    Return a DataFrame with computed spread and APY after fees.
-    APY is computed using remaining days till expiration.
-    Args:
-        df (pd.DataFrame): main table
-        df_fee (pd.DataFrame): table containing information about CEX's fee.
-
-    Returns:
-        pd.DataFrame: main table with fee-adjusted APY.
-    """
-    merge_fee = pd.merge(df, df_fee, on="Exchange")
-    N = FindDaysUntilExpire(merge_fee.APY, merge_fee.Spread)
-    merge_fee['Spr.-f'] = merge_fee['Spread'] - merge_fee['TotalFee']
-    #merge_fee['SpreadTaker'] = merge_fee['Spread'] - merge_fee['Taker']
-    merge_fee['APY-f'] = FindAPY((merge_fee["Spr.-f"]), N)
-    #merge_fee['APY_Taker'] = FindAPY((merge_fee.SpreadTaker), N)
-    return merge_fee.loc[:, ['Symbol', 'Exchange', 'Spr.-f','APY-f']]
-
-def CreateDataFrame(DeliveryTime:str, timestamp:datetime, 
-                    markPrice:float, indexPrice:float, 
-                    ex_name:str, symbol:str) -> pd.DataFrame:
-        RemainingDay = (DeliveryTime - timestamp).total_seconds()/60/60/24
-        Days = 365/RemainingDay
-        Spread = (markPrice/indexPrice - 1.0)*100
-        APY = FindAPY(Spread, Days)
-        return pd.DataFrame({'Exchange':[ex_name], 'Symbol': [symbol], 
-                               'Spread': Spread, 'APY': APY, 
-                               'Spot': indexPrice, 'Future': markPrice})
-
-def FetchTickersBybit(Tickers: list[str]):
-    exchange = ccxt.bybit()
+def FetchTickersBybit(Tickers: list[str], exchange:ccxt):
+    #exchange = ccxt.bybit()
     ex_name = 'Bybit'
-    market = exchange.load_markets()
+    market = exchange.markets if exchange.markets else exchange.load_markets()
     timestamp = datetime.fromtimestamp(exchange.milliseconds()/1000)
     FetchedTickers = exchange.fetch_tickers(Tickers)
     SpreadData = pd.DataFrame()
@@ -59,10 +20,10 @@ def FetchTickersBybit(Tickers: list[str]):
         SpreadData = pd.concat([SpreadData, df], ignore_index=True)
     return SpreadData
 
-def FetchTickersDeribit(Tickers: list[str]):
-    exchange = ccxt.deribit()
+def FetchTickersDeribit(Tickers: list[str], exchange:ccxt):
+    #exchange = ccxt.deribit()
     ex_name = 'Deribit'
-    market = exchange.load_markets()
+    market = exchange.markets if exchange.markets else exchange.load_markets()
     SpreadData = pd.DataFrame()
     """
     Deribit's fetch_tickers need same currency code to fetch multiple symbols.
@@ -96,10 +57,10 @@ def FetchTickersDeribit(Tickers: list[str]):
             SpreadData = pd.concat([SpreadData, df], ignore_index=True) 
     return SpreadData
 
-def FetchTickersKucoin(Tickers: list[str]):
-    exchange = ccxt.kucoinfutures()
+def FetchTickersKucoin(Tickers: list[str], exchange:ccxt):
+    #exchange = ccxt.kucoinfutures()
     ex_name = "Kucoin"
-    market = exchange.load_markets()
+    market = exchange.markets if exchange.markets else exchange.load_markets()
     timestamp = datetime.fromtimestamp(exchange.milliseconds()/1000)
     FetchedTickers = exchange.fetch_tickers(Tickers)
     SpreadData = pd.DataFrame()
@@ -112,10 +73,10 @@ def FetchTickersKucoin(Tickers: list[str]):
         SpreadData = pd.concat([SpreadData, df], ignore_index=True)
     return SpreadData
 
-def FetchTickersOKX(Tickers: list[str]):
-    exchange = ccxt.okx()
+def FetchTickersOKX(Tickers: list[str], exchange:ccxt):
+    #exchange = ccxt.okx()
     ex_name = "OKX"
-    market = exchange.load_markets()
+    market = exchange.markets if exchange.markets else exchange.load_markets()
     #Get Spot prices.
     for ticker in Tickers:
         SpotSymbol = list(set([ticker[:3]+"/USDT" for ticker in Tickers])) #Get unique spot ticker from future ticker.
@@ -136,7 +97,7 @@ def FetchTickersOKX(Tickers: list[str]):
         SpreadData = pd.concat([SpreadData, df], ignore_index=True)
     return SpreadData
 
-def FetchTickersBinance(Tickers: list[str]):
+def FetchTickersBinance(Tickers: list[str], exchange:ccxt):
     def GroupedSpotSymbol(Tickers):
         grouped_tickers = []
         for Ticker in Tickers:
@@ -145,12 +106,13 @@ def FetchTickersBinance(Tickers: list[str]):
                 grouped_tickers.append(key)
         return grouped_tickers
     
-    exchange = ccxt.binancecoinm()
+    #exchange = ccxt.binancecoinm()
+    spot_ex = ccxt.binance()
     ex_name = "Binance"
-    market = exchange.load_markets()
+    market = exchange.markets if exchange.markets else exchange.load_markets()
     grouped_tickers = GroupedSpotSymbol(Tickers)
     grouped_tickers = [ticker+"/USDT" for ticker in grouped_tickers]
-    FetchSpot = ccxt.binance().fetch_tickers(grouped_tickers)
+    FetchSpot = spot_ex.fetch_tickers(grouped_tickers)
     FetchedTickers = exchange.fetch_tickers(Tickers)
     SpreadData = pd.DataFrame()
     for ticker in FetchedTickers.values():
