@@ -4,9 +4,7 @@ import pandas as pd
 import ccxt
 from CaC_functions import DeliveryTimeFromTicker,CreateDataFrame
 
-def FetchTickersBybit(Tickers: list[str], exchange:ccxt):
-    #exchange = ccxt.bybit()
-    ex_name = 'Bybit'
+def FetchTickersBybit(Tickers: list[str], exchange:ccxt, ex_name:str):
     market = exchange.markets if exchange.markets else exchange.load_markets()
     timestamp = datetime.fromtimestamp(exchange.milliseconds()/1000)
     FetchedTickers = exchange.fetch_tickers(Tickers)
@@ -20,9 +18,7 @@ def FetchTickersBybit(Tickers: list[str], exchange:ccxt):
         SpreadData = pd.concat([SpreadData, df], ignore_index=True)
     return SpreadData
 
-def FetchTickersDeribit(Tickers: list[str], exchange:ccxt):
-    #exchange = ccxt.deribit()
-    ex_name = 'Deribit'
+def FetchTickersDeribit(Tickers: list[str], exchange:ccxt, ex_name:str):
     market = exchange.markets if exchange.markets else exchange.load_markets()
     SpreadData = pd.DataFrame()
     """
@@ -57,9 +53,7 @@ def FetchTickersDeribit(Tickers: list[str], exchange:ccxt):
             SpreadData = pd.concat([SpreadData, df], ignore_index=True) 
     return SpreadData
 
-def FetchTickersKucoin(Tickers: list[str], exchange:ccxt):
-    #exchange = ccxt.kucoinfutures()
-    ex_name = "Kucoin"
+def FetchTickersKucoin(Tickers: list[str], exchange:ccxt, ex_name:str):
     market = exchange.markets if exchange.markets else exchange.load_markets()
     timestamp = datetime.fromtimestamp(exchange.milliseconds()/1000)
     FetchedTickers = exchange.fetch_tickers(Tickers)
@@ -73,9 +67,7 @@ def FetchTickersKucoin(Tickers: list[str], exchange:ccxt):
         SpreadData = pd.concat([SpreadData, df], ignore_index=True)
     return SpreadData
 
-def FetchTickersOKX(Tickers: list[str], exchange:ccxt):
-    #exchange = ccxt.okx()
-    ex_name = "OKX"
+def FetchTickersOKX(Tickers: list[str], exchange:ccxt, ex_name:str):
     market = exchange.markets if exchange.markets else exchange.load_markets()
     #Get Spot prices.
     for ticker in Tickers:
@@ -97,7 +89,8 @@ def FetchTickersOKX(Tickers: list[str], exchange:ccxt):
         SpreadData = pd.concat([SpreadData, df], ignore_index=True)
     return SpreadData
 
-def FetchTickersBinance(Tickers: list[str], exchange:ccxt):
+def FetchTickersBinance(Tickers: list[str], exchange:ccxt, ex_name:str):
+    #For Binance, exchange contains (future_exchange, spot_exchange). 
     def GroupedSpotSymbol(Tickers):
         grouped_tickers = []
         for Ticker in Tickers:
@@ -106,14 +99,13 @@ def FetchTickersBinance(Tickers: list[str], exchange:ccxt):
                 grouped_tickers.append(key)
         return grouped_tickers
     
-    #exchange = ccxt.binancecoinm()
-    spot_ex = ccxt.binance()
-    ex_name = "Binance"
-    market = exchange.markets if exchange.markets else exchange.load_markets()
+    (future_ex, spot_ex) = exchange
+    market = future_ex.markets if future_ex.markets else future_ex.load_markets()
+    market_s = spot_ex.markets if spot_ex.markets else spot_ex.load_markets()
     grouped_tickers = GroupedSpotSymbol(Tickers)
     grouped_tickers = [ticker+"/USDT" for ticker in grouped_tickers]
     FetchSpot = spot_ex.fetch_tickers(grouped_tickers)
-    FetchedTickers = exchange.fetch_tickers(Tickers)
+    FetchedTickers = future_ex.fetch_tickers(Tickers)
     SpreadData = pd.DataFrame()
     for ticker in FetchedTickers.values():
         symbol = ticker['symbol']

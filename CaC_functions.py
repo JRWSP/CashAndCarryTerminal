@@ -50,7 +50,7 @@ def CreateDataFrame(DeliveryTime:str, timestamp:datetime,
 
 def colorize_dataframe(df, exchange_column, color_mapping):
     # Function to colorize the DataFrame based on the exchange column
-    df_colored = df.copy().round(2)
+    df_colored = df.copy().round(2).astype(object) #astype is needed to suppress Pandas depreciation warning.
     for index, row in df_colored.iterrows():
         color = color_mapping[row[exchange_column]]
         df_colored.loc[index] = [colored(str(value), color) for value in row]
@@ -164,6 +164,26 @@ def filter_multi_threads(ExchangeName:dict=None, Base:str|list[str]='BTC', Type:
                 print(f'{ExName.__name__} generated an exception: {exc}')
     return exchanges, results
 
+def LoadSpotMarkets(Exchanges:dict[str:ccxt]) -> dict[str:ccxt]:
+    """
+    Some exchange has separated future and spot markets in ccxt.
+    This will include loaded spot market that will be used in fetch function and avoid loading repetition.
+    For now this function requires manual exchange identification. 
+
+    Args:
+        Exchanges (dict[str:ccxt]): Exchanges loaded by FilterTickers function
+
+    Raises:
+        ValueError: _description_
+
+    Returns:
+        Exchanges(dict[str:ccxt]): Exchanges with spot market loaded. 
+    """
+    if "Binance" in Exchanges.keys():
+        ccxt.binance().load_markets()
+        Exchanges["Binance"] = (Exchanges["Binance"], ccxt.binance())
+    return Exchanges
+
 #Read my position and find PnL.
 def PnL_Frame(combined_df: pd.DataFrame, df_fee:pd.DataFrame) -> pd.DataFrame:
     #Filter for matched Exchange and Symbol between my position and monitored.
@@ -191,7 +211,7 @@ def fetch_concurrent(Exchanges:dict, ExchangeTickers:dict, FetchTickersFucntion:
         future_to_func = {}
         for ExchangeName, TickersList in ExchangeTickers.items():
             if len(TickersList) != 0:
-                future_to_func.update({ executor.submit(FetchTickersFucntion[ExchangeName], TickersList, Exchanges[ExchangeName]): FetchTickersFucntion[ExchangeName]})
+                future_to_func.update({ executor.submit(FetchTickersFucntion[ExchangeName], TickersList, Exchanges[ExchangeName], ExchangeName): FetchTickersFucntion[ExchangeName]})
         results = []
         for future in concurrent.futures.as_completed(future_to_func):
             func = future_to_func[future]
