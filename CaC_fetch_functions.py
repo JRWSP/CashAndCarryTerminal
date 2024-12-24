@@ -118,3 +118,17 @@ def FetchTickersBinance(Tickers: list[str], exchange:ccxt, ex_name:str):
         df = CreateDataFrame(DeliveryTime,timestamp,markPrice,indexPrice,ex_name,symbol)
         SpreadData = pd.concat([SpreadData, df], ignore_index=True)
     return SpreadData
+
+def FetchTickersBitget(Tickers: list[str], exchange:ccxt, ex_name:str):
+    market = exchange.markets if exchange.markets else exchange.load_markets()
+    timestamp = datetime.fromtimestamp(exchange.milliseconds()/1000)
+    FetchedTickers = exchange.fetch_tickers(Tickers)
+    SpreadData = pd.DataFrame()
+    for ticker in FetchedTickers.values():
+        symbol = ticker['symbol']
+        markPrice = float(ticker['info']['markPrice'])
+        indexPrice = float(ticker['info']['indexPrice'])
+        DeliveryTime = datetime.fromtimestamp(int(ticker['info']['deliveryTime'])/1000)
+        df = CreateDataFrame(DeliveryTime,timestamp,markPrice,indexPrice,ex_name,symbol)
+        SpreadData = pd.concat([SpreadData, df], ignore_index=True)
+    return SpreadData
