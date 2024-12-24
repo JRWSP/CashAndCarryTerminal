@@ -221,7 +221,6 @@ def fetch_concurrent(Exchanges:dict, ExchangeTickers:dict, FetchTickersFucntion:
             except Exception as exc:
                 print(f'{func.__name__} generated an exception: {exc}')
     # Combine all DataFrames
-    print(f"Results are {results}")
     combined_df = pd.concat(results, ignore_index=True)
     return combined_df.loc[:, ['Symbol', 'APY','Spread', 'Exchange','Spot', 'Future']]
 
